@@ -1,0 +1,6 @@
+{
+  "name": "NBA GameCenter",
+  "domains": ["sensor"],
+  "country": "US",
+  "render_readme": true
+}
