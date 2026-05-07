@@ -15,7 +15,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Forward to organized sensors module."""
+    """Forward sensor setup to the organized sensor modules."""
     await setup_live_sensors(hass, entry, async_add_entities)
     await setup_series_sensors(hass, entry, async_add_entities)
     await setup_bracket_sensors(hass, entry, async_add_entities)

@@ -2,37 +2,49 @@ from __future__ import annotations
 
 from typing import Any
 
-from .client import NBAApiClient
-from ..utils.mapping import SERIES_IDS
-from ..utils.parsing import (
-    map_series_to_game_ids,
-    parse_live_game_for_series,
-)
-
 
 class NBALiveAPI:
-    def __init__(self, client: NBAApiClient) -> None:
-        self._client = client
+    """Live game extraction for ESPN NBA."""
+
+    def __init__(self, coordinator) -> None:
+        self._coordinator = coordinator
 
     async def get_live_series_data(self) -> dict[str, dict[str, Any]]:
-        """Return live data per series_id."""
-        scoreboard = await self._client.get_todays_scoreboard()
-        if not scoreboard:
+        """
+        Return live data keyed by game_id.
+        (ESPN does NOT provide series-level live data like NHL.)
+        """
+        games = self._coordinator.data.get("games", [])
+        if not games:
             return {}
 
-        series_to_game = map_series_to_game_ids(scoreboard, SERIES_IDS)
-        result: dict[str, dict[str, Any]] = {}
+        live_map: dict[str, dict[str, Any]] = {}
 
-        for series_id, game_id in series_to_game.items():
+        for g in games:
+            game_id = g.get("game_id")
             if not game_id:
                 continue
 
-            boxscore = await self._client.get_boxscore(game_id)
-            if not boxscore:
-                continue
+            sb = g["scoreboard"]
+            comp = sb.get("competitions", [{}])[0]
 
-            live = parse_live_game_for_series(series_id, game_id, boxscore)
-            if live:
-                result[series_id] = live
+            home = comp["competitors"][0]
+            away = comp["competitors"][1]
 
-        return result
+            status = comp.get("status", {}).get("type", {})
+            live_map[game_id] = {
+                "game_id": game_id,
+                "status": status.get("description"),
+                "period": status.get("period"),
+                "clock": status.get("displayClock"),
+                "home_team": home["team"]["displayName"],
+                "home_score": home.get("score"),
+                "away_team": away["team"]["displayName"],
+                "away_score": away.get("score"),
+                "possession": comp.get("situation", {}).get("possession"),
+                "summary": g.get("summary"),
+                "boxscore": g.get("boxscore"),
+                "playbyplay": g.get("playbyplay"),
+            }
+
+        return live_map

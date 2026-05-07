@@ -2,19 +2,50 @@ from __future__ import annotations
 
 from typing import Any
 
-from .client import NBAApiClient
-from ..utils.mapping import SERIES_IDS
-from ..utils.parsing import parse_bracket_series
-
 
 class NBAPLAYOFFAPI:
-    def __init__(self, client: NBAApiClient) -> None:
-        self._client = client
+    """Extract playoff bracket + series data from ESPN scoreboard."""
+
+    def __init__(self, coordinator) -> None:
+        self._coordinator = coordinator
 
     async def get_series_data(self) -> dict[str, dict[str, Any]]:
-        """Return dict keyed by series_id (r1_e1, cf_w, finals, etc.)."""
-        data = await self._client.get_playoff_bracket()
-        if not data:
+        """Return dict keyed by ESPN series ID."""
+        games = self._coordinator.data.get("games", [])
+        if not games:
             return {}
 
-        return parse_bracket_series(data, SERIES_IDS)
+        series_map: dict[str, dict[str, Any]] = {}
+
+        for g in games:
+            sb = g["scoreboard"]
+            comp = sb.get("competitions", [{}])[0]
+
+            series = comp.get("series", {})
+            sid = series.get("id")
+            if not sid:
+                continue
+
+            home = comp["competitors"][0]
+            away = comp["competitors"][1]
+
+            if sid not in series_map:
+                series_map[sid] = {
+                    "series_id": sid,
+                    "round": series.get("round"),
+                    "home_team": home["team"]["displayName"],
+                    "away_team": away["team"]["displayName"],
+                    "games": [],
+                }
+
+            series_map[sid]["games"].append(
+                {
+                    "game_id": g["game_id"],
+                    "home_score": home.get("score"),
+                    "away_score": away.get("score"),
+                    "status": comp.get("status", {}).get("type", {}).get("description"),
+                    "game_number": series.get("gameNumber"),
+                }
+            )
+
+        return series_map

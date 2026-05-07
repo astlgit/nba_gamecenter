@@ -1,44 +1,36 @@
 from __future__ import annotations
 
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.entity import DeviceInfo
+import logging
+from typing import Any
+
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from ..const import DOMAIN
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    """Set up NBA playoff bracket sensor."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
-
-    bracket = coordinator.data.get("bracket")
-    if bracket:
-        async_add_entities([NBABracketSensor(coordinator, bracket)])
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    async_add_entities([NBABracketSensor(coordinator)])
 
 
-class NBABracketSensor(Entity):
-    """Sensor representing the full NBA playoff bracket."""
+class NBABracketSensor(CoordinatorEntity, SensorEntity):
+    """NBA Playoff Bracket Sensor using normalized ESPN data."""
 
-    def __init__(self, coordinator, bracket):
-        self.coordinator = coordinator
-        self.bracket = bracket
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
         self._attr_unique_id = "nba_playoff_bracket"
         self._attr_name = "NBA Playoff Bracket"
 
     @property
-    def state(self):
-        return self.bracket.get("seasonYear")
+    def state(self) -> int:
+        """Return number of active playoff series."""
+        series = self.coordinator.data.get("series", {})
+        return len(series)
 
     @property
-    def extra_state_attributes(self):
-        return {
-            "season": self.bracket.get("seasonYear"),
-            "rounds": self.bracket.get("rounds"),
-        }
-
-    @property
-    def device_info(self):
-        return DeviceInfo(
-            identifiers={(DOMAIN, "nba_gamecenter")},
-            name="NBA GameCenter",
-            manufacturer="NBA",
-        )
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the normalized bracket structure."""
+        return self.coordinator.data.get("series", {})

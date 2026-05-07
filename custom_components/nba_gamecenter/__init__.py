@@ -6,6 +6,7 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .coordinator.nba_coordinator import NBAGameCenterCoordinator
 
@@ -22,12 +23,22 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    coordinator = NBAGameCenterCoordinator(hass)
+    # Create aiohttp session
+    session = async_get_clientsession(hass)
+
+    # Pass hass + session to coordinator
+    coordinator = NBAGameCenterCoordinator(hass, session)
+
+    # First refresh
     await coordinator.async_config_entry_first_refresh()
 
+    # Store coordinator
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    hass.data[DOMAIN][entry.entry_id] = {
+        "coordinator": coordinator
+    }
 
+    # Forward sensor platform
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
