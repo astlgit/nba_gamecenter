@@ -1,0 +1,15 @@
+{
+  "domain": "nba_gamecenter",
+  "name": "NBA GameCenter",
+  "version": "0.1.0",
+  "documentation": "https://github.com/astlgit/nba_gamecenter",
+  "issue_tracker": "https://github.com/astlgit/nba_gamecenter/issues",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@astlgit"],
+  "iot_class": "cloud_polling",
+  "integration_type": "integration",
+  "loggers": ["custom_components.nba_gamecenter"],
+  "platforms": ["sensor"],
+  "config_flow": true
+}
