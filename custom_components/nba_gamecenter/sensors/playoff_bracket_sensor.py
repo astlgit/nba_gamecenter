@@ -1,35 +1,44 @@
 from __future__ import annotations
 
-from typing import Any
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import DeviceInfo
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from ..coordinator.nba_coordinator import NBAGameCenterCoordinator
-from ..utils.mapping import BRACKET_STRUCTURE
+from ..const import DOMAIN
 
 
-class NBAPlayoffBracketSensor(CoordinatorEntity, SensorEntity):
-    _attr_icon = "mdi:bracket"
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up NBA playoff bracket sensor."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    def __init__(self, coordinator: NBAGameCenterCoordinator) -> None:
-        super().__init__(coordinator)
-        self._attr_unique_id = "nba_bracket"
-        self._attr_name = "nba_bracket"
+    bracket = coordinator.data.get("bracket")
+    if bracket:
+        async_add_entities([NBABracketSensor(coordinator, bracket)])
+
+
+class NBABracketSensor(Entity):
+    """Sensor representing the full NBA playoff bracket."""
+
+    def __init__(self, coordinator, bracket):
+        self.coordinator = coordinator
+        self.bracket = bracket
+        self._attr_unique_id = "nba_playoff_bracket"
+        self._attr_name = "NBA Playoff Bracket"
 
     @property
-    def native_value(self) -> str:
-        return "playoffs"
+    def state(self):
+        return self.bracket.get("seasonYear")
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        series_data = self.coordinator.data.get("series", {})
-        active = [sid for sid, s in series_data.items() if s.get("active")]
-        completed = [sid for sid, s in series_data.items() if s.get("completed")]
-
-        attrs: dict[str, Any] = {
-            "structure": BRACKET_STRUCTURE,
-            "active_series": active,
-            "completed_series": completed,
+    def extra_state_attributes(self):
+        return {
+            "season": self.bracket.get("seasonYear"),
+            "rounds": self.bracket.get("rounds"),
         }
-        return attrs
+
+    @property
+    def device_info(self):
+        return DeviceInfo(
+            identifiers={(DOMAIN, "nba_gamecenter")},
+            name="NBA GameCenter",
+            manufacturer="NBA",
+        )
