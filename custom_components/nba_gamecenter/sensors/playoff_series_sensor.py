@@ -1,41 +1,54 @@
 from __future__ import annotations
 
-from typing import Any
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import DeviceInfo
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from ..coordinator.nba_coordinator import NBAGameCenterCoordinator
-from ..utils.mapping import SERIES_IDS
+from ..const import DOMAIN
 
 
-class NBAPlayoffSeriesSensor(CoordinatorEntity, SensorEntity):
-    _attr_icon = "mdi:trophy"
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up NBA playoff series sensors."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    def __init__(self, coordinator: NBAGameCenterCoordinator, series_id: str) -> None:
-        super().__init__(coordinator)
-        self._series_id = series_id
-        self._attr_unique_id = f"nba_series_{series_id}"
-        self._attr_name = f"nba_series_{series_id}"
+    sensors = []
+
+    series_list = coordinator.data.get("series", [])
+    for series in series_list:
+        sensors.append(NBASeriesSensor(coordinator, series))
+
+    async_add_entities(sensors)
+
+
+class NBASeriesSensor(Entity):
+    """Sensor representing a single NBA playoff series."""
+
+    def __init__(self, coordinator, series):
+        self.coordinator = coordinator
+        self.series = series
+        self._attr_unique_id = f"nba_series_{series['seriesId']}"
+        self._attr_name = f"{series['roundName']} - {series['seriesName']}"
 
     @property
-    def native_value(self) -> str | None:
-        data = self._series_data
-        if not data:
-            return None
-        return data.get("series_status")
+    def state(self):
+        return self.series.get("seriesStatus")
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self._series_data or {}
+    def extra_state_attributes(self):
+        return {
+            "series_id": self.series.get("seriesId"),
+            "round": self.series.get("roundNum"),
+            "conference": self.series.get("conference"),
+            "home_team": self.series.get("homeTeam"),
+            "away_team": self.series.get("awayTeam"),
+            "home_wins": self.series.get("homeWins"),
+            "away_wins": self.series.get("awayWins"),
+            "games": self.series.get("games"),
+        }
 
     @property
-    def _series_data(self) -> dict[str, Any] | None:
-        series = self.coordinator.data.get("series", {})
-        return series.get(self._series_id)
-
-
-def create_series_sensors(
-    coordinator: NBAGameCenterCoordinator,
-) -> list[NBAPlayoffSeriesSensor]:
-    return [NBAPlayoffSeriesSensor(coordinator, sid) for sid in SERIES_IDS]
+    def device_info(self):
+        return DeviceInfo(
+            identifiers={(DOMAIN, "nba_gamecenter")},
+            name="NBA GameCenter",
+            manufacturer="NBA",
+        )

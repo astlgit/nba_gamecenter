@@ -1,46 +1,54 @@
 from __future__ import annotations
 
-from typing import Any
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import DeviceInfo
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from ..coordinator.nba_coordinator import NBAGameCenterCoordinator
-from ..utils.mapping import SERIES_IDS
+from ..const import DOMAIN
 
 
-class NBALiveSeriesSensor(CoordinatorEntity, SensorEntity):
-    _attr_icon = "mdi:scoreboard"
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up NBA live game sensors."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    def __init__(self, coordinator: NBAGameCenterCoordinator, series_id: str) -> None:
-        super().__init__(coordinator)
-        self._series_id = series_id
-        self._attr_unique_id = f"nba_live_{series_id}"
-        self._attr_name = f"nba_live_{series_id}"
+    sensors = []
 
-    @property
-    def native_value(self) -> str | None:
-        data = self._live_data
-        if not data:
-            return None
-        status = data.get("status")
-        period = data.get("period")
-        clock = data.get("clock")
-        if status != "live":
-            return status
-        return f"Q{period} {clock}"
+    live_games = coordinator.data.get("live", [])
+    for game in live_games:
+        sensors.append(NBALiveGameSensor(coordinator, game))
+
+    async_add_entities(sensors)
+
+
+class NBALiveGameSensor(Entity):
+    """Sensor representing a single live NBA game."""
+
+    def __init__(self, coordinator, game):
+        self.coordinator = coordinator
+        self.game = game
+        self._attr_unique_id = f"nba_live_{game['gameId']}"
+        self._attr_name = f"{game['awayTeam']['teamTricode']} @ {game['homeTeam']['teamTricode']}"
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        return self._live_data or {}
+    def state(self):
+        return self.game.get("gameStatusText")
 
     @property
-    def _live_data(self) -> dict[str, Any] | None:
-        live = self.coordinator.data.get("live", {})
-        return live.get(self._series_id)
+    def extra_state_attributes(self):
+        return {
+            "game_id": self.game.get("gameId"),
+            "home_team": self.game["homeTeam"]["teamName"],
+            "away_team": self.game["awayTeam"]["teamName"],
+            "home_score": self.game["homeTeam"].get("score"),
+            "away_score": self.game["awayTeam"].get("score"),
+            "period": self.game.get("period"),
+            "clock": self.game.get("gameClock"),
+            "status": self.game.get("gameStatus"),
+        }
 
-
-def create_live_sensors(
-    coordinator: NBAGameCenterCoordinator,
-) -> list[NBALiveSeriesSensor]:
-    return [NBALiveSeriesSensor(coordinator, sid) for sid in SERIES_IDS]
+    @property
+    def device_info(self):
+        return DeviceInfo(
+            identifiers={(DOMAIN, "nba_gamecenter")},
+            name="NBA GameCenter",
+            manufacturer="NBA",
+        )
